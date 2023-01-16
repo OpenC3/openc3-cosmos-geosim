@@ -1,0 +1,9 @@
+# Set VARIABLEs here to allow variation in your plugin
+# See https://openc3.com/docs/v5/plugins for more information
+VARIABLE geosim_port 7272
+VARIABLE geosim_microservice_name GEOSIM
+
+MICROSERVICE GEOSIM <%= geosim_microservice_name %>
+  WORK_DIR .
+  PORT <%= geosim_port %>
+  CMD ruby geosat_target.rb <%= geosim_port %>
