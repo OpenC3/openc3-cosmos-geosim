@@ -25,7 +25,7 @@ module OpenC3
   class GeosatTarget
     class GeosatServerInterface < TcpipServerInterface
       def initialize(port)
-        super(port.to_i, port.to_i, 5.0, nil, 'LENGTH', 64, 16, 11, 1, 'BIG_ENDIAN', 4, "0x1ACDFC1D", nil, true)
+        super(port.to_i, port.to_i, 5.0, nil, 'LENGTH', 64, 16, 11, 1, 'BIG_ENDIAN', 4, "0x1ACFFC1D", nil, true)
       end
     end
 
