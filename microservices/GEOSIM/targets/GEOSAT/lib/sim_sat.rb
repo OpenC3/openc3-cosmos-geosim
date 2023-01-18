@@ -197,6 +197,9 @@ module OpenC3
       name = packet.packet_name.upcase
 
       case name
+      when 'NOOP'
+        accept_cmd()
+
       when 'COLLECT'
         if @mode == 'OPERATE'
           @collects += 1
