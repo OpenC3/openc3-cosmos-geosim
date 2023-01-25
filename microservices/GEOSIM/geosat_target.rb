@@ -42,6 +42,7 @@ module OpenC3
           @sim_sat.write(identified_packet)
         else
           # Ignoring unknown packet
+          Logger.error "GeosatInterfaceThread ignoring unknown command: #{packet.buffer.formatted}"
         end
       end
     end
@@ -99,12 +100,17 @@ module OpenC3
     end
 
     def initialize(port)
+      @name = ENV['OPENC3_MICROSERVICE_NAME']
+      @scope = @name.split("__")[0]
+      Logger.scope = @scope
+      Logger.microservice_name = @name
       System.instance(["GEOSAT"], File.join(__dir__, "targets"))
       @sim_sat = SimSat.new('GEOSAT')
       @sim_sat.set_rates
       @interface = GeosatServerInterface.new(port)
       @interface_thread = nil
       @telemetry_thread = nil
+      Logger.info("GEOSIM Initialized")
     end
 
     def start
