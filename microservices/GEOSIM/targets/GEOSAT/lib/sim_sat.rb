@@ -47,6 +47,7 @@ module OpenC3
 
       @get_count = 0
       @queue = Queue.new
+      @collects = 0
 
       # HEALTH_STATUS
       @cmd_acpt_cnt = 0
