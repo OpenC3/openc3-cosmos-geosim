@@ -27,46 +27,7 @@ module OpenC3
   class SimSat < SimulatedTarget
     def initialize(target_name)
       super(target_name)
-
       @target = System.targets[target_name]
-      position_filename = File.join(@target.dir, 'data', 'position.bin')
-      attitude_filename = File.join(@target.dir, 'data', 'attitude.bin')
-      @position_file = File.open(position_filename, 'rb')
-      @attitude_file = File.open(attitude_filename, 'rb')
-      @position_file_size = File.size(position_filename)
-      @attitude_file_size = File.size(attitude_filename)
-      @position_file_bytes_read = 0
-      @attitude_file_bytes_read = 0
-
-      @pos_packet = Structure.new(:BIG_ENDIAN)
-      @pos_packet.append_item('DAY', 16, :UINT)
-      @pos_packet.append_item('MSOD', 32, :UINT)
-      @pos_packet.append_item('USOMS', 16, :UINT)
-      @pos_packet.append_item('POSX', 32, :FLOAT)
-      @pos_packet.append_item('POSY', 32, :FLOAT)
-      @pos_packet.append_item('POSZ', 32, :FLOAT)
-      @pos_packet.append_item('SPARE1', 16, :UINT)
-      @pos_packet.append_item('SPARE2', 32, :UINT)
-      @pos_packet.append_item('SPARE3', 16, :UINT)
-      @pos_packet.append_item('VELX', 32, :FLOAT)
-      @pos_packet.append_item('VELY', 32, :FLOAT)
-      @pos_packet.append_item('VELZ', 32, :FLOAT)
-      @pos_packet.append_item('SPARE4', 32, :UINT)
-      @pos_packet.enable_method_missing
-
-      @att_packet = Structure.new(:BIG_ENDIAN)
-      @att_packet.append_item('DAY', 16, :UINT)
-      @att_packet.append_item('MSOD', 32, :UINT)
-      @att_packet.append_item('USOMS', 16, :UINT)
-      @att_packet.append_item('Q1', 32, :FLOAT)
-      @att_packet.append_item('Q2', 32, :FLOAT)
-      @att_packet.append_item('Q3', 32, :FLOAT)
-      @att_packet.append_item('Q4', 32, :FLOAT)
-      @att_packet.append_item('BIASX', 32, :FLOAT)
-      @att_packet.append_item('BIASY', 32, :FLOAT)
-      @att_packet.append_item('BIASZ', 32, :FLOAT)
-      @att_packet.append_item('SPARE', 32, :FLOAT)
-      @att_packet.enable_method_missing
 
       # Initialize fixed parts of packets
       packet = @tlm_packets['HEALTH_STATUS']
@@ -84,44 +45,8 @@ module OpenC3
       packet.CcsdsSeqFlags = 'NOGROUP'
       packet.CcsdsLength   = packet.buffer.length - 7
 
-      packet = @tlm_packets['ADCS']
-      packet.enable_method_missing
-      packet.CcsdsSeqFlags = 'NOGROUP'
-      packet.CcsdsLength   = packet.buffer.length - 7
-
-      packet = @tlm_packets['IMAGE']
-      packet.enable_method_missing
-      packet.CcsdsSeqFlags = 'NOGROUP'
-      packet.image = ("\x05" * 10000) + "The Secret is Astral Body"
-      packet.CcsdsLength = packet.buffer.length - 7
-
-      packet = @tlm_packets['MECH']
-      packet.enable_method_missing
-      packet.CcsdsSeqFlags = 'NOGROUP'
-      packet.CcsdsLength = packet.buffer.length - 7
-
-      packet = @tlm_packets['IMAGER']
-      packet.enable_method_missing
-      packet.CcsdsSeqFlags = 'NOGROUP'
-      packet.CcsdsLength = packet.buffer.length - 7
-
       @get_count = 0
       @queue = Queue.new
-
-      # ADCS
-      @trackStars = Array.new
-      @trackStars[0] = 1237
-      @trackStars[1] = 1329
-      @trackStars[2] = 1333
-      @trackStars[3] = 1139
-      @trackStars[4] = 1161
-      @trackStars[5] = 682
-      @trackStars[6] = 717
-      @trackStars[7] = 814
-      @trackStars[8] = 583
-      @trackStars[9] = 622
-      @adcs_ctrl = 'OFF'
-      @sr_ang_to_sun = 0
 
       # HEALTH_STATUS
       @cmd_acpt_cnt = 0
@@ -133,40 +58,19 @@ module OpenC3
       # THERMAL
       @temp1 = 0
       @temp2 = 0
-      @heater1_ctrl = 'OFF'
+      @heater1_ctrl = 'ON'
       @heater1_state = 'OFF'
       @heater1_setpt = 0.0
       @heater1_pwr = 0.0
-      @heater2_ctrl = 'OFF'
+      @heater2_ctrl = 'ON'
       @heater2_state = 'OFF'
       @heater2_setpt = 0.0
       @heater2_pwr = 0.0
-
-      # MECH
-      @slrpnl1_ang = 180.0
-      @slrpnl2_ang = 180.0
-      @slrpnl1_state = 'STOWED'
-      @slrpnl2_state = 'STOWED'
-      @slrpnl1_pwr = 0.0
-      @slrpnl2_pwr = 0.0
-      @pwr_watt_seconds = INIT_PWR_WATT_SECONDS
-      @battery = (@pwr_watt_seconds.to_f / MAX_PWR_WATT_SECONDS.to_f) * 100.0
-
-      # IMAGER
-      @collects = 0
-      @duration = 10
-      @collect_type = 'NORMAL'
-      @imager_state = 'OFF'
-      @imager_pwr = 0.0
-      @collect_end_time = nil
     end
 
     def set_rates
-      set_rate('ADCS', 10)
       set_rate('HEALTH_STATUS', 100)
       set_rate('THERMAL', 100)
-      set_rate('MECH', 100)
-      set_rate('IMAGER', 100)
     end
 
     def accept_cmd(message = nil)
@@ -211,16 +115,6 @@ module OpenC3
           reject_cmd("Mode must be OPERATE to collect images")
         end
 
-      when 'ABORT'
-        @collect_end_time = nil
-        accept_cmd()
-
-      when 'CLEAR'
-        accept_cmd()
-        @collects = 0
-        @cmd_acpt_cnt = 0
-        @cmd_rjct_cnt = 0
-
       when 'SET_MODE'
         mode = packet.read('mode')
         case mode
@@ -228,122 +122,13 @@ module OpenC3
           @mode = mode
           accept_cmd()
         when 'CHECKOUT'
-          if @battery >= 50.0
-            @mode = mode
-            accept_cmd()
-          else
-            reject_cmd("Cannot enter checkout if battery < 50.0%")
-          end
+          @mode = mode
+          accept_cmd()
         when 'OPERATE'
-          if @temp1 < 35.0 and @temp1 > 25.0 and @temp2 < 35.0 and @temp2 > 25.0
-            @mode = mode
-            accept_cmd()
-          else
-            reject_cmd("Cannot enter OPERATE unless temperatures are stable near 30.0")
-          end
+          @mode = mode
+          accept_cmd()
         else
           reject_cmd("Invalid Mode: #{mode}")
-        end
-
-      when 'SLRPNLDEPLOY'
-        num = packet.read('NUM')
-        case num
-        when 1
-          @slrpnl1_state = 'DEPLOYED'
-          accept_cmd()
-        when 2
-          @slrpnl2_state = 'DEPLOYED'
-          accept_cmd()
-        else
-          reject_cmd("Invalid Solar Array Number: #{num}")
-        end
-
-      when 'SLRPNLSTOW'
-        num = packet.read('NUM')
-        case num
-        when 1
-          @slrpnl1_state = 'STOWED'
-          accept_cmd()
-        when 2
-          @slrpnl2_state = 'STOWED'
-          accept_cmd()
-        else
-          reject_cmd("Invalid Solar Array Number: #{num}")
-        end
-
-      when 'SLRPNLANG'
-        num = packet.read('NUM')
-        ang = packet.read('ANG')
-        case num
-        when 1
-          case ang
-          when 0..360
-            @slrpnl1_ang = ang
-            accept_cmd()
-          else
-            reject_cmd("Invalid Solar Array Angle: #{setpt}")
-          end
-        when 2
-          case ang
-          when 0..360
-            @slrpnl2_ang = ang
-            accept_cmd()
-          else
-            reject_cmd("Invalid Solar Array Angle: #{setpt}")
-          end
-        else
-          reject_cmd("Invalid Solar Array Number: #{num}")
-        end
-
-      when 'TABLE_LOAD'
-        @table_data = packet.read('DATA')
-
-      when 'HTR_CTRL'
-        num = packet.read('NUM')
-        state = packet.read('STATE')
-        case num
-        when 1
-          case state
-          when 'ON', 'OFF'
-            @heater1_ctrl = state
-            accept_cmd()
-          else
-            reject_cmd("Invalid Heater Control: #{state}")
-          end
-        when 2
-          case state
-          when 'ON', 'OFF'
-            @heater2_ctrl = state
-            accept_cmd()
-          else
-            reject_cmd("Invalid Heater Control: #{state}")
-          end
-        else
-          reject_cmd("Invalid Heater Number: #{num}")
-        end
-
-      when 'HTR_STATE'
-        num = packet.read('NUM')
-        state = packet.read('STATE')
-        case num
-        when 1
-          case state
-          when 'ON', 'OFF'
-            @heater1_state = state
-            accept_cmd()
-          else
-            reject_cmd("Invalid Heater State: #{state}")
-          end
-        when 2
-          case state
-          when 'ON', 'OFF'
-            @heater2_state = state
-            accept_cmd()
-          else
-            reject_cmd("Invalid Heater State: #{state}")
-          end
-        else
-          reject_cmd("Invalid Heater Number: #{num}")
         end
 
       when 'HTR_SETPT'
@@ -370,15 +155,6 @@ module OpenC3
           reject_cmd("Invalid Heater Number: #{num}")
         end
 
-      when 'ADCS_CTRL'
-        state = packet.read('STATE')
-        case state
-        when 'ON', 'OFF'
-          @adcs_ctrl = state
-          accept_cmd()
-        else
-          reject_cmd("Invalid ADCS Control: #{state}")
-        end
       end
     end
 
@@ -398,73 +174,6 @@ module OpenC3
 
       pending_packets.each do |packet|
         case packet.packet_name
-        when 'ADCS'
-          # Read 44 Bytes for Position Data
-          pos_data = nil
-          begin
-            pos_data = @position_file.read(44)
-            @position_file_bytes_read += 44
-          rescue
-            # Do Nothing
-          end
-
-          if pos_data.nil? or pos_data.length == 0
-            # Assume end of file - close and reopen
-            @position_file.close
-            @position_file = File.open(File.join(@target.dir, 'data', 'position.bin'), 'rb')
-            pos_data = @position_file.read(44)
-            @position_file_bytes_read = 44
-          end
-
-          @pos_packet.buffer = pos_data
-          packet.posx = @pos_packet.posx
-          packet.posy = @pos_packet.posy
-          packet.posz = @pos_packet.posz
-          packet.velx = @pos_packet.velx
-          packet.vely = @pos_packet.vely
-          packet.velz = @pos_packet.velz
-
-          # Read 40 Bytes for Attitude Data
-          att_data = nil
-          begin
-            att_data = @attitude_file.read(40)
-            @attitude_file_bytes_read += 40
-          rescue
-            # Do Nothing
-          end
-
-          if att_data.nil? or att_data.length == 0
-            @attitude_file.close
-            @attitude_file = File.open(File.join(@target.dir, 'data', 'attitude.bin'), 'rb')
-            att_data = @attitude_file.read(40)
-            @attitude_file_bytes_read = 40
-          end
-
-          @att_packet.buffer = att_data
-          packet.q1 = @att_packet.q1
-          packet.q2 = @att_packet.q2
-          packet.q3 = @att_packet.q3
-          packet.q4 = @att_packet.q4
-          packet.biasx = @att_packet.biasx
-          packet.biasy = @att_packet.biasy
-          packet.biasy = @att_packet.biasz
-
-          packet.star1id = @trackStars[((@get_count / 100) + 0) % 10]
-          packet.star2id = @trackStars[((@get_count / 100) + 1) % 10]
-          packet.star3id = @trackStars[((@get_count / 100) + 2) % 10]
-          packet.star4id = @trackStars[((@get_count / 100) + 3) % 10]
-          packet.star5id = @trackStars[((@get_count / 100) + 4) % 10]
-
-          packet.posprogress = (@position_file_bytes_read.to_f / @position_file_size.to_f) * 100.0
-          packet.attprogress = (@attitude_file_bytes_read.to_f / @attitude_file_size.to_f) * 100.0
-          @sr_ang_to_sun = packet.posprogress * 3.6
-          packet.sr_ang_to_sun = @sr_ang_to_sun
-          packet.adcs_ctrl = @adcs_ctrl
-
-          packet.timesec = time.tv_sec
-          packet.timeus  = time.tv_usec
-          packet.ccsdsseqcnt += 1
-
         when 'HEALTH_STATUS'
           packet.timesec = time.tv_sec
           packet.timeus  = time.tv_usec
@@ -535,88 +244,6 @@ module OpenC3
           packet.heater2_pwr = @heater2_pwr
           packet.temp1 = @temp1
           packet.temp2 = @temp2
-
-        when 'MECH'
-          if @adcs_ctrl == 'ON'
-            @slrpnl1_ang = @sr_ang_to_sun
-            @slrpnl2_ang = @sr_ang_to_sun
-          end
-
-          delta_ang = (@sr_ang_to_sun - @slrpnl1_ang).abs
-          if delta_ang > 180.0
-            delta_ang = 360 - delta_ang
-          end
-          if @slrpnl1_state == 'DEPLOYED'
-            @slrpnl1_pwr = 500 * (1 - (delta_ang / 180.0))
-          else
-            @slrpnl1_pwr = 0
-          end
-
-          delta_ang = (@sr_ang_to_sun - @slrpnl2_ang).abs
-          if delta_ang > 180.0
-            delta_ang = 360 - delta_ang
-          end
-          if @slrpnl2_state == 'DEPLOYED'
-            @slrpnl2_pwr = 500 * (1 - (delta_ang / 180.0))
-          else
-            @slrpnl2_pwr = 0
-          end
-
-          incoming_pwr = @slrpnl1_pwr + @slrpnl2_pwr # Upto 1000 per second
-
-          used_pwr = @cpu_pwr + @imager_pwr + @heater1_pwr + @heater2_pwr # Up to 900 per second
-          delta_pwr = incoming_pwr - used_pwr
-          @pwr_watt_seconds += delta_pwr
-          if @pwr_watt_seconds < 0
-            @pwr_watt_seconds = 100
-          elsif @pwr_watt_seconds > MAX_PWR_WATT_SECONDS
-            @pwr_watt_seconds = MAX_PWR_WATT_SECONDS
-          end
-          @battery = (@pwr_watt_seconds.to_f / MAX_PWR_WATT_SECONDS.to_f) * 100.0
-          if @battery < 50.0
-            @mode = 'SAFE'
-          end
-
-          packet.timesec = time.tv_sec
-          packet.timeus = time.tv_usec
-          packet.ccsdsseqcnt += 1
-          packet.slrpnl1_ang = @slrpnl1_ang
-          packet.slrpnl2_ang = @slrpnl2_ang
-          packet.slrpnl1_state = @slrpnl1_state
-          packet.slrpnl2_state = @slrpnl2_state
-          packet.slrpnl1_pwr = @slrpnl1_pwr
-          packet.slrpnl2_pwr = @slrpnl2_pwr
-          packet.battery = @battery
-
-        when 'IMAGER'
-          if @collect_end_time
-            if @collect_end_time < Time.now
-              @imager_state = 'OFF'
-              @collect_end_time = nil
-              @imager_pwr = 0
-              image_packet = @tlm_packets['IMAGE']
-              time = Time.now
-              image_packet.timesec = time.tv_sec
-              image_packet.timeus  = time.tv_usec
-              image_packet.ccsdsseqcnt += 1
-              @queue << image_packet.dup
-            else
-              @imager_state = 'ON'
-              @imager_pwr = 200
-            end
-          else
-            @imager_pwr = 0
-          end
-
-          packet.timesec = time.tv_sec
-          packet.timeus = time.tv_usec
-          packet.ccsdsseqcnt += 1
-          packet.collects = @collects
-          packet.duration = @duration
-          packet.collect_type = @collect_type
-          packet.imager_state = @imager_state
-          packet.imager_pwr = @imager_pwr
-
         end
       end
 
